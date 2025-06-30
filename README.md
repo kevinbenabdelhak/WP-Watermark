@@ -5,7 +5,7 @@
 **Requires at least:** 5.0  
 **Tested up to:** 6.7.1  
 **Requires PHP:** 7.0  
-**Stable tag:** 1.0  
+**Stable tag:** 1.1   
 **License:** GPLv2 or later  
 **License URI:** [https://www.gnu.org/licenses/gpl-2.0.html](https://www.gnu.org/licenses/gpl-2.0.html)
 
@@ -49,6 +49,14 @@ WP Watermark est un plugin WordPress qui vous permet d'ajouter un watermark text
    - Choisissez "Ajouter un watermark" dans le menu d'actions groupées et cliquez sur "Appliquer".
 
 ## Mise à jour
+
+### 1.1
+* Ajout d'une page d'option
+* Changer le nom du filigrane
+* Modifier la couleur
+* Changer d'emplacement
+* Ajuster l'opacité
+* Modifier le contour (taille et couleur)
 
 ### 1.0
 
