@@ -1,7 +1,7 @@
-<?php 
+<?php
 
 if (!defined('ABSPATH')) {
-    exit; 
+    exit;
 }
 
 function watermark_enqueue_scripts($hook) {
@@ -10,6 +10,35 @@ function watermark_enqueue_scripts($hook) {
     }
 
     wp_enqueue_script('jquery');
+
+    // Récupérer les options
+    $text        = get_option('wp_watermark_text', get_bloginfo('name'));
+    $font_size   = get_option('wp_watermark_font_size', '30');
+    $color       = get_option('wp_watermark_color', '#ffffff');
+    $opacity     = get_option('wp_watermark_opacity', '0.3');
+    $position    = get_option('wp_watermark_position', 'bottom-right');
+    $stroke_color= get_option('wp_watermark_stroke_color', '#000000');
+    $stroke_width= get_option('wp_watermark_stroke_width', '1');
+
+    // Fonction pour convertir hex en rgba (avec opacité)
+    function hex_to_rgba($hex, $alpha = 0.3) {
+        $hex = str_replace('#', '', $hex);
+
+        if (strlen($hex) === 3) {
+            $r = hexdec(str_repeat(substr($hex, 0, 1), 2));
+            $g = hexdec(str_repeat(substr($hex, 1, 1), 2));
+            $b = hexdec(str_repeat(substr($hex, 2, 1), 2));
+        } else {
+            $r = hexdec(substr($hex, 0, 2));
+            $g = hexdec(substr($hex, 2, 2));
+            $b = hexdec(substr($hex, 4, 2));
+        }
+        return "rgba($r, $g, $b, $alpha)";
+    }
+    $color_rgba = hex_to_rgba($color, floatval($opacity));
+    // Le contour n'a pas d'opacité, utilisons l’hex tel quel
+    $stroke_color_hex = $stroke_color;
+    $stroke_width_px = intval($stroke_width);
 
     wp_add_inline_script('jquery', '
     jQuery(document).ready(function($) {
@@ -35,10 +64,13 @@ function watermark_enqueue_scripts($hook) {
             }
 
             $("#bulk-action-loader").remove();
-            $("#doaction, #doaction2").after("<div id=\'bulk-action-loader\'><span class=\'spinner is-active\' style=\'margin-left: 10px;\'></span> <span id=\'conversion-progress\'>0 / " + attachment_ids.length + " traitées</span></div>");
+            $("#doaction, #doaction2").after(\'<div id="bulk-action-loader"><span class="spinner is-active" style="margin-left: 10px;"></span> <span id="conversion-progress">0 / \' + attachment_ids.length + \' traitées</span></div>\');
 
             var processedCount = 0;
             var failedCount = 0;
+
+            var pos = watermarked_ajax.position;
+            var padding = 10;
 
             function processNext(index) {
                 if (index >= attachment_ids.length) {
@@ -63,6 +95,7 @@ function watermark_enqueue_scripts($hook) {
                     success: function(response) {
                         if (response.success) {
                             var img = new Image();
+                            img.crossOrigin = "anonymous";
                             img.src = response.data.url;
                             img.onload = function() {
                                 var canvas = document.createElement("canvas");
@@ -71,19 +104,55 @@ function watermark_enqueue_scripts($hook) {
                                 canvas.height = img.height;
 
                                 ctx.drawImage(img, 0, 0);
-                                ctx.font = "30px Arial";
-                                ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
-                                ctx.textAlign = "right";
-                                ctx.textBaseline = "bottom";
-                                ctx.strokeStyle = "black";
-                                ctx.lineWidth = 1;
-                                ctx.strokeText("' . get_bloginfo('name') . '", img.width - 10, img.height - 10);
-                                ctx.fillText("' . get_bloginfo('name') . '", img.width - 10, img.height - 10);
+
+                                ctx.font = watermarked_ajax.font_size + "px Arial";
+                                ctx.fillStyle = watermarked_ajax.color;
+                                ctx.strokeStyle = watermarked_ajax.stroke_color;
+                                ctx.lineWidth = watermarked_ajax.stroke_width;
+
+                                var x, y;
+                                switch(pos) {
+                                    case "top-left":
+                                        ctx.textAlign = "left";
+                                        ctx.textBaseline = "top";
+                                        x = padding;
+                                        y = padding;
+                                        break;
+                                    case "top-right":
+                                        ctx.textAlign = "right";
+                                        ctx.textBaseline = "top";
+                                        x = canvas.width - padding;
+                                        y = padding;
+                                        break;
+                                    case "bottom-left":
+                                        ctx.textAlign = "left";
+                                        ctx.textBaseline = "bottom";
+                                        x = padding;
+                                        y = canvas.height - padding;
+                                        break;
+                                    case "bottom-right":
+                                    default:
+                                        ctx.textAlign = "right";
+                                        ctx.textBaseline = "bottom";
+                                        x = canvas.width - padding;
+                                        y = canvas.height - padding;
+                                }
+
+                                if (watermarked_ajax.stroke_width > 0) {
+                                    ctx.strokeText(watermarked_ajax.text, x, y);
+                                }
+                                ctx.fillText(watermarked_ajax.text, x, y);
 
                                 var dataURL = canvas.toDataURL("image/png");
                                 saveImage(dataURL, attachment_ids[index]);
 
                                 processedCount++;
+                                $("#conversion-progress").text(processedCount + " / " + attachment_ids.length + " traitées");
+                                processNext(index + 1);
+                            };
+                            img.onerror = function () {
+                                failedCount++;
+                                console.error("Erreur de chargement pour l\'image ID " + attachment_ids[index]);
                                 $("#conversion-progress").text(processedCount + " / " + attachment_ids.length + " traitées");
                                 processNext(index + 1);
                             };
@@ -126,8 +195,14 @@ function watermark_enqueue_scripts($hook) {
     });');
 
     wp_localize_script('jquery', 'watermarked_ajax', [
-        'ajax_url' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce('watermark_nonce')
+        'ajax_url'     => admin_url('admin-ajax.php'),
+        'nonce'        => wp_create_nonce('watermark_nonce'),
+        'text'         => $text,
+        'font_size'    => $font_size,
+        'color'        => $color_rgba,
+        'position'     => $position,
+        'stroke_color' => $stroke_color_hex,
+        'stroke_width' => $stroke_width_px,
     ]);
 }
 add_action('admin_enqueue_scripts', 'watermark_enqueue_scripts');
