@@ -4,7 +4,7 @@
 Plugin Name: WP Watermark
 Plugin URI: https://kevin-benabdelhak.fr/plugins/wp-watermark/
 Description: WP Watermark est un plugin qui permet d'ajouter le nom de votre site en tant que filigrane sur vos images directement dans votre bibliothèque WordPress. 
-Version: 1.1
+Version: 1.2
 Author: Kevin BENABDELHAK
 Author URI: https://kevin-benabdelhak.fr/
 Contributors: kevinbenabdelhak
